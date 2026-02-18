@@ -51,13 +51,167 @@ namespace BitchlandUnstuckExtensionMeBepInEx
 
             enableThisMod = configEnableMe.Value;
 
-            Harmony.CreateAndPatchAll(typeof(BitchlandUnstuckExtensionMeBepInEx));
+            PatchAllHarmonyMethods();
 
             Logger.LogInfo($"Plugin BitchlandUnstuckExtensionMeBepInEx BepInEx is loaded!");
         }
 
-        [HarmonyPatch(typeof(Mis_Zea2), "DestIn6")]
-        [HarmonyFinalizer]
+        public static void PatchAllHarmonyMethods()
+        {
+            if (!enableThisMod)
+            {
+                return;
+            }
+
+            try
+            {
+                PatchHarmonyMethodUnity(typeof(Mis_Zea2), "DestIn6", "Mis_Zea2_DestIn6", false, false, true);
+                PatchHarmonyMethodUnity(typeof(int_ConstructionPlan), "ResourcesCheck", "int_ConstructionPlan_ResourcesCheck_exception", false, false, true);
+                PatchHarmonyMethodUnity(typeof(Mis_BackEntrance), "PlanPlacedCheck", "Mis_BackEntrance_PlanPlacedCheck_exception", false, false, true);
+                PatchHarmonyMethodUnity(typeof(Mis_BackEntrance), "BuildCheck", "Mis_BackEntrance_BuildCheck_exception", false, false, true);
+                PatchHarmonyMethodUnity(typeof(Mis_BackEntrance), "BuildCheck", "Mis_BackEntrance_BuildCheck", true, false);
+                PatchHarmonyMethodUnity(typeof(Mis_BackEntrance), "PlanPlacedCheck", "Mis_BackEntrance_PlanPlacedCheck", true, false);
+                PatchHarmonyMethodUnity(typeof(int_ConstructionPlan), "ResourcesCheck", "int_ConstructionPlan_ResourcesCheck", true, false);
+                PatchHarmonyMethodUnity(typeof(Mis_Zea2), "DestIn6", "DestIn6_MisZea2", true, false);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex.ToString());
+            }
+        }
+
+        public static void PatchHarmonyMethodUnity(Type originalClass, string originalMethodName, string patchedMethodName, bool usePrefix, bool usePostfix, bool useFinalizer = false, Type[] parameters = null)
+        {
+            string uniqueId = "com.wolfitdm.BitchlandUnstuckExtensionMeBepInEx";
+            Type uniqueType = typeof(BitchlandUnstuckExtensionMeBepInEx);
+
+            // Create a new Harmony instance with a unique ID
+            var harmony = new Harmony(uniqueId);
+
+            if (originalClass == null)
+            {
+                Logger.LogInfo($"GetType originalClass == null");
+                return;
+            }
+
+            MethodInfo patched = null;
+
+            try
+            {
+                patched = AccessTools.Method(uniqueType, patchedMethodName);
+            }
+            catch (Exception ex)
+            {
+                patched = null;
+            }
+
+            if (patched == null)
+            {
+                Logger.LogInfo($"AccessTool.Method patched {patchedMethodName} == null");
+                return;
+
+            }
+
+            // Or apply patches manually
+            MethodInfo original = null;
+
+            try
+            {
+                if (parameters == null)
+                {
+                    original = AccessTools.Method(originalClass, originalMethodName);
+                }
+                else
+                {
+                    original = AccessTools.Method(originalClass, originalMethodName, parameters);
+                }
+            }
+            catch (AmbiguousMatchException ex)
+            {
+                Type[] nullParameters = new Type[] { };
+                try
+                {
+                    if (patched == null)
+                    {
+                        parameters = nullParameters;
+                    }
+
+                    ParameterInfo[] parameterInfos = patched.GetParameters();
+
+                    if (parameterInfos == null || parameterInfos.Length == 0)
+                    {
+                        parameters = nullParameters;
+                    }
+
+                    List<Type> parametersN = new List<Type>();
+
+                    for (int i = 0; i < parameterInfos.Length; i++)
+                    {
+                        ParameterInfo parameterInfo = parameterInfos[i];
+
+                        if (parameterInfo == null)
+                        {
+                            continue;
+                        }
+
+                        if (parameterInfo.Name == null)
+                        {
+                            continue;
+                        }
+
+                        if (parameterInfo.Name.StartsWith("__"))
+                        {
+                            continue;
+                        }
+
+                        Type type = parameterInfos[i].ParameterType;
+
+                        if (type == null)
+                        {
+                            continue;
+                        }
+
+                        parametersN.Add(type);
+                    }
+
+                    parameters = parametersN.ToArray();
+                }
+                catch (Exception ex2)
+                {
+                    parameters = nullParameters;
+                }
+
+                try
+                {
+                    original = AccessTools.Method(originalClass, originalMethodName, parameters);
+                }
+                catch (Exception ex2)
+                {
+                    original = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                original = null;
+            }
+
+            if (original == null)
+            {
+                Logger.LogInfo($"AccessTool.Method original {originalMethodName} == null");
+                return;
+            }
+
+            HarmonyMethod patchedMethod = new HarmonyMethod(patched);
+
+            var prefixMethod = usePrefix ? patchedMethod : null;
+            var postfixMethod = usePostfix ? patchedMethod : null;
+            var finalizerMethod = useFinalizer ? patchedMethod : null;
+
+            harmony.Patch(original,
+                prefix: prefixMethod,
+                postfix: postfixMethod,
+                finalizer: finalizerMethod);
+        }
         public static Exception Mis_Zea2_DestIn6(Exception __exception)
         {
             if (__exception != null)
@@ -68,9 +222,6 @@ namespace BitchlandUnstuckExtensionMeBepInEx
             return enableThisMod ? null : __exception;
         }
 
-
-        [HarmonyPatch(typeof(int_ConstructionPlan), "ResourcesCheck")]
-        [HarmonyFinalizer]
         public static Exception int_ConstructionPlan_ResourcesCheck_exception(Exception __exception)
         {
             if (__exception != null)
@@ -80,9 +231,6 @@ namespace BitchlandUnstuckExtensionMeBepInEx
             }
             return enableThisMod ? null : __exception;
         }
-
-        [HarmonyPatch(typeof(Mis_BackEntrance), "PlanPlacedCheck")]
-        [HarmonyFinalizer]
         public static Exception Mis_BackEntrance_PlanPlacedCheck_exception(Exception __exception)
         {
             if (__exception != null)
@@ -93,8 +241,6 @@ namespace BitchlandUnstuckExtensionMeBepInEx
             return enableThisMod ? null : __exception;
         }
 
-        [HarmonyPatch(typeof(Mis_BackEntrance), "BuildCheck")]
-        [HarmonyFinalizer]
         public static Exception Mis_BackEntrance_BuildCheck_exception(Exception __exception)
         {
             if (__exception != null)
@@ -104,9 +250,6 @@ namespace BitchlandUnstuckExtensionMeBepInEx
             }
             return enableThisMod ? null : __exception;
         }
-
-        [HarmonyPatch(typeof(Mis_BackEntrance), "BuildCheck")]
-        [HarmonyPrefix]
         public static bool Mis_BackEntrance_BuildCheck(object __instance)
         {
             try
@@ -217,9 +360,6 @@ namespace BitchlandUnstuckExtensionMeBepInEx
 
             return false;
         }
-
-        [HarmonyPatch(typeof(Mis_BackEntrance), "PlanPlacedCheck")]
-        [HarmonyPrefix]
         public static bool Mis_BackEntrance_PlanPlacedCheck(object __instance)
         {
             if (!enableThisMod)
@@ -257,9 +397,6 @@ namespace BitchlandUnstuckExtensionMeBepInEx
 
             return false;
         }
-
-        [HarmonyPatch(typeof(int_ConstructionPlan), "ResourcesCheck")]
-        [HarmonyPrefix]
         public static bool int_ConstructionPlan_ResourcesCheck(object __instance)
         {
             if (!enableThisMod)
@@ -297,9 +434,6 @@ namespace BitchlandUnstuckExtensionMeBepInEx
             }
             return false;
         }
-
-        [HarmonyPatch(typeof(Mis_Zea2), "DestIn6")]
-        [HarmonyPrefix]
         public static bool DestIn6_MisZea2(object __instance)
         {
             if (!enableThisMod)
